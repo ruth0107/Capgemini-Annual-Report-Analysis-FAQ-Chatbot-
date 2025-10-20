@@ -40,7 +40,7 @@ DEFAULT_PDF_FILENAME = "Annual-Report-2024-25.pdf"
 
 # Gemini API Configuration
 # Reads the key securely from the environment variable GEMINI_API_KEY
-API_KEY = os.environ.get("GEMINI_API_KEY", "") 
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
 
 # Initialize resources
@@ -392,3 +392,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
