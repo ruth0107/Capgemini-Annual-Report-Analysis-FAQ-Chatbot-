@@ -38,7 +38,6 @@ def download_nltk_data():
     """Ensures necessary NLTK resources are downloaded."""
     try:
         # We still download these, as stopwords and wordnet are required.
-        # We no longer strictly need 'punkt' but keep it for completeness in case word_tokenize is used elsewhere.
         nltk.download('punkt', quiet=True)
         nltk.download('stopwords', quiet=True)
         nltk.download('wordnet', quiet=True)
@@ -57,14 +56,14 @@ CHUNK_OVERLAP = 250
 DEFAULT_PDF_FILENAME = "Annual-Report-2024-25.pdf"
 
 # Gemini API Configuration
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# API_KEY is now handled dynamically in main()
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
+
 
 # Initialize resources
 @st.cache_resource
 def setup_nlp_tools():
     """Initializes and caches NLTK resources."""
-    # Since download_nltk_data() is called first, these should now succeed.
     stop_words = set(stopwords.words('english'))
     lemmatizer = WordNetLemmatizer()
     return stop_words, lemmatizer
@@ -192,12 +191,12 @@ def get_best_match(query, chunks, vectorizer, tfidf_matrix):
 
 # --- LLM Generation Function (Synchronous) ---
 
-def generate_answer_with_llm(user_query, context_sentence, retrieval_score):
+def generate_answer_with_llm(user_query, context_sentence, retrieval_score, api_key): # <-- MODIFIED SIGNATURE
     """
     Calls the Gemini API using the synchronous 'requests' library.
     """
     
-    if not API_KEY:
+    if not api_key: # <-- USE PASSED KEY
         return "**API Key Missing Error:** The RAG Chatbot requires the Gemini API Key to generate conversational answers."
 
     # 1. Define the system instruction (persona and rules)
@@ -230,7 +229,7 @@ def generate_answer_with_llm(user_query, context_sentence, retrieval_score):
 
     for attempt in range(max_retries):
         try:
-            full_api_url = f"{API_URL}?key={API_KEY}"
+            full_api_url = f"{API_URL}?key={api_key}" # <-- USE PASSED KEY
             
             response = requests.post(
                 full_api_url,
@@ -270,6 +269,11 @@ def main():
     
     st.title("🧠 RAG Chatbot: Capegemini FAQ's")
     st.markdown("Uploaded PDF is used to build a semantic index for the whole document. Answers are based on **meaningful chunks** from the full report.")
+    
+    # Initialize API key in session state
+    if 'gemini_api_key' not in st.session_state:
+        st.session_state.gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+
 
     # --- Sidebar for PDF Upload ---
     with st.sidebar:
@@ -328,9 +332,33 @@ def main():
                 """
             )
         # --- END UI IMPROVEMENT ---
+        
+        st.markdown("---")
+        st.header("3. Gemini API Key") # <-- NEW SECTION
+        
+        # API Key Input Logic: Uses environment key if present, otherwise prompts user
+        if not os.environ.get("GEMINI_API_KEY"):
+             key_input = st.text_input(
+                "Enter your Gemini API Key:",
+                type="password",
+                value=st.session_state.gemini_api_key,
+                key="api_key_input",
+                help="You can get a key from Google AI Studio. The application is currently missing the environment variable."
+            )
+             # Update session state with the user input key
+             st.session_state.gemini_api_key = key_input
+             
+        # Check if we have a key now
+        if not st.session_state.gemini_api_key:
+            st.error("🛑 **API Key Not Found!** Please enter your Gemini API Key above to enable the chat.")
+        # --- END NEW SECTION ---
 
 
     # --- Data Loading and Indexing ---
+    
+    # Get the current operational API key
+    current_api_key = st.session_state.gemini_api_key
+    
     data_source_key = file_name 
     
     if file_data is None:
@@ -352,12 +380,9 @@ def main():
     if vectorizer is None:
         return
         
-    # Check for API Key presence after data is loaded
-    if not API_KEY:
-        st.error(
-            "🛑 **API Key Not Found!**\n\n"
-            "To use the RAG Chatbot, you must set your Gemini API key as an environment variable named `GEMINI_API_KEY`."
-        )
+    # Check for API Key presence after data is loaded - only display chat if key is present
+    if not current_api_key:
+        # Stop further execution if key is missing (error already displayed in sidebar)
         return
 
     # Chat Initialization
@@ -395,7 +420,8 @@ def main():
                 response_text = generate_answer_with_llm(
                     user_query, 
                     best_chunk, 
-                    best_score
+                    best_score,
+                    current_api_key # <-- PASS THE OPERATIONAL KEY
                 )
                 st.markdown(response_text)
 
