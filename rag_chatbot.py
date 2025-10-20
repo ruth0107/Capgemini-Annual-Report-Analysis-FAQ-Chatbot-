@@ -58,20 +58,19 @@ DEFAULT_PDF_FILENAME = "Annual-Report-2024-25.pdf"
 # Gemini API Configuration
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
 
-# --- NEW: Key Loading Helper ---
+# --- Key Loading Helper (Updated for clarity) ---
 def get_initial_api_key():
     """Tries to load API key from Streamlit secrets, then from OS environment."""
-    # 1. Check Streamlit secrets
+    # 1. Check Streamlit secrets (for Streamlit Cloud deployments)
     try:
         if st.secrets.get("GEMINI_API_KEY"):
             return st.secrets["GEMINI_API_KEY"]
-    except AttributeError:
-        # st.secrets might not exist in local development without secrets.toml
-        pass
+    except Exception:
+        pass # Ignore if st.secrets is not initialized
         
     # 2. Check environment variables
     return os.environ.get("GEMINI_API_KEY", "")
-# -------------------------------
+# -----------------------------------------------
 
 
 # Initialize resources
@@ -99,7 +98,6 @@ def basic_clean(text):
 def preprocess_words(text, do_lemmatize=True):
     """Word Tokenize (via split), clean, remove stopwords, and lemmatize. Bypasses NLTK Punkt dependency."""
     text = basic_clean(text)
-    # FIX: Replaced word_tokenize with simple split to avoid LookupError for 'punkt'
     tokens = text.split() 
     tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
     if do_lemmatize:
@@ -350,33 +348,37 @@ def main():
         st.markdown("---")
         st.header("3. Gemini API Key") 
         
-        # Get the current operational API key
+        # --- KEY LOADING LOGIC: Checks backend first, then falls back to manual input ---
+        
+        backend_key = get_initial_api_key()
         current_api_key = st.session_state.gemini_api_key
         
-        # Logic to handle key display based on whether it was loaded automatically
-        if current_api_key and get_initial_api_key():
-            # Key loaded from secrets or env
-            st.success("✅ Gemini API Key successfully loaded from secrets or environment.")
+        if backend_key:
+            # If the key is found in secrets/env, use it and display success message.
+            st.session_state.gemini_api_key = backend_key
+            st.success("✅ Gemini API Key successfully loaded from secrets/environment.")
         else:
-            # Fallback to manual input if no key is found automatically or if previous key failed
+            # If not found automatically, display manual input.
             key_input = st.text_input(
                 "Enter your Gemini API Key:",
                 type="password",
-                value=current_api_key, # Use current_api_key which might be a manually entered value from a previous run
+                value=current_api_key, 
                 key="api_key_input",
-                help="You must enter your key if it's not set via environment variables or secrets.toml."
+                help="The key was not found in secrets.toml or environment variables. Please enter it manually."
             )
-            # Update session state with the current input key
             st.session_state.gemini_api_key = key_input
             
-            # Re-check and warn if still missing
-            if not st.session_state.gemini_api_key:
+            # Update current_api_key after the input might have changed it
+            current_api_key = st.session_state.gemini_api_key 
+            
+            if not current_api_key:
                 st.warning("⚠️ **API Key Missing!** Please enter your Gemini API Key above to enable the chat.")
+        # --- END KEY LOADING LOGIC ---
 
 
     # --- Data Loading and Indexing ---
     
-    # Get the final operational API key after checking sidebar input
+    # Get the final operational API key after sidebar processing
     current_api_key = st.session_state.gemini_api_key
     
     data_source_key = file_name 
@@ -414,9 +416,8 @@ def main():
     if current_api_key:
         user_query = st.chat_input("Ask a question about the full report...")
     else:
-        # Display a disabled input box when the key is missing to prevent chat submission errors
+        # Display a disabled input box when the key is missing
         user_query = st.chat_input("Please enter your Gemini API Key in the sidebar to chat...", disabled=True)
-        # We return here only if there is no user_query, preventing the RAG pipeline from running
         return
 
 
@@ -443,7 +444,7 @@ def main():
                     user_query, 
                     best_chunk, 
                     best_score,
-                    current_api_key # <-- PASS THE OPERATIONAL KEY
+                    current_api_key 
                 )
                 st.markdown(response_text)
 
