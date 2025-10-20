@@ -1,6 +1,6 @@
 # ==============================================================================
 # NLP Mini Project (Part A): Capgemini Web Dashboard - LOCAL FILE MODE
-# This version loads a static PDF file and includes advanced visualizations.
+# This version is fixed to handle the 'punkt_tab' NLTK error and uses a static PDF.
 # ==============================================================================
 
 import streamlit as st
@@ -50,6 +50,8 @@ def setup_nltk_resources():
     """Download necessary NLTK packages once and initialize resources."""
     try:
         nltk.download('punkt', quiet=True)
+        # FIX: Added 'punkt_tab' to resolve the Resource not found error
+        nltk.download('punkt_tab', quiet=True) 
         nltk.download('stopwords', quiet=True)
         nltk.download('wordnet', quiet=True)
         nltk.download('omw-1.4', quiet=True)
@@ -63,7 +65,7 @@ def setup_nltk_resources():
 stop_words, lemmatizer = setup_nltk_resources()
 
 
-# --- Topic Interpretation Function ---
+# --- Topic Interpretation Function (FIXED: Added back for display) ---
 def get_topic_interpretation(topic_id, keywords_str):
     """Provides a human-readable title for the LDA topics based on keywords."""
     keywords = set(re.split(r'[,\s]+', keywords_str.lower()))
