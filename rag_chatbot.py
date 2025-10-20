@@ -337,20 +337,20 @@ def main():
         st.header("3. Gemini API Key") # <-- NEW SECTION
         
         # API Key Input Logic: Uses environment key if present, otherwise prompts user
-        if not os.environ.get("GEMINI_API_KEY"):
-             key_input = st.text_input(
-                "Enter your Gemini API Key:",
-                type="password",
-                value=st.session_state.gemini_api_key,
-                key="api_key_input",
-                help="You can get a key from Google AI Studio. The application is currently missing the environment variable."
-            )
-             # Update session state with the user input key
-             st.session_state.gemini_api_key = key_input
+        # Key management moved to session state for persistence
+        key_input = st.text_input(
+            "Enter your Gemini API Key:",
+            type="password",
+            value=st.session_state.gemini_api_key,
+            key="api_key_input",
+            help="You can get a key from Google AI Studio. The application is currently missing the environment variable."
+        )
+        # Update session state with the current input key
+        st.session_state.gemini_api_key = key_input
              
         # Check if we have a key now
         if not st.session_state.gemini_api_key:
-            st.error("🛑 **API Key Not Found!** Please enter your Gemini API Key above to enable the chat.")
+            st.warning("⚠️ **API Key Missing!** Please enter your Gemini API Key above to enable the chat.")
         # --- END NEW SECTION ---
 
 
@@ -380,11 +380,6 @@ def main():
     if vectorizer is None:
         return
         
-    # Check for API Key presence after data is loaded - only display chat if key is present
-    if not current_api_key:
-        # Stop further execution if key is missing (error already displayed in sidebar)
-        return
-
     # Chat Initialization
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -395,8 +390,16 @@ def main():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat Input
-    user_query = st.chat_input("Ask a question about the full report...")
+    # --- CHAT INPUT LOGIC FIX ---
+    # Check for API Key presence before displaying the active chat input
+    if current_api_key:
+        user_query = st.chat_input("Ask a question about the full report...")
+    else:
+        # Display a disabled input box when the key is missing to prevent chat submission errors
+        user_query = st.chat_input("Please enter your Gemini API Key in the sidebar to chat...", disabled=True)
+        # We return here only if there is no user_query, preventing the RAG pipeline from running
+        return
+
 
     if user_query:
         # Add user message to history and display
