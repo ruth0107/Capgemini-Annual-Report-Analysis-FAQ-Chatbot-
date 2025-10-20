@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import nltk # <-- NEW: Import NLTK for downloads
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize # Still imported, but no longer used in preprocess_words
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
@@ -37,7 +37,8 @@ logging.getLogger("pdfminer").setLevel(logging.ERROR)
 def download_nltk_data():
     """Ensures necessary NLTK resources are downloaded."""
     try:
-        # 'punkt' for word_tokenize, 'stopwords' for corpus, 'wordnet' for lemmatizer
+        # We still download these, as stopwords and wordnet are required.
+        # We no longer strictly need 'punkt' but keep it for completeness in case word_tokenize is used elsewhere.
         nltk.download('punkt', quiet=True)
         nltk.download('stopwords', quiet=True)
         nltk.download('wordnet', quiet=True)
@@ -83,9 +84,10 @@ def basic_clean(text):
     return text
 
 def preprocess_words(text, do_lemmatize=True):
-    """Word Tokenize, clean, remove stopwords, and lemmatize."""
+    """Word Tokenize (via split), clean, remove stopwords, and lemmatize. Bypasses NLTK Punkt dependency."""
     text = basic_clean(text)
-    tokens = word_tokenize(text)
+    # FIX: Replaced word_tokenize with simple split to avoid LookupError for 'punkt'
+    tokens = text.split() 
     tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
     if do_lemmatize:
         tokens = [lemmatizer.lemmatize(t) for t in tokens]
