@@ -1,6 +1,10 @@
 python3-pip
 
-Essential system libraries to resolve dependency conflicts for PDF processing and display
+--- System Libraries for NLTK Data and PDF Processing ---
+
+These packages are often required as dependencies for NLTK,
+
+or for displaying images/handling complex buffers in the cloud environment.
 
 libsm6
 libxext6
@@ -8,3 +12,4 @@ libfontconfig1
 libice6
 libxrender1
 libxtst6
+tesseract-ocr
