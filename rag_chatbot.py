@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import nltk # <-- NEW: Import NLTK for downloads
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -13,7 +14,7 @@ import time
 import requests 
 from io import BytesIO
 from pypdf import PdfReader 
-import asyncio # Used locally to run synchronous requests in a Streamlit context
+import asyncio 
 
 # --- Semantic Dependencies ---
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -31,15 +32,30 @@ st.set_page_config(
 warnings.filterwarnings("ignore", category=FutureWarning)
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
+# --- NLTK Data Download (FIX FOR LookupError) ---
+@st.cache_resource
+def download_nltk_data():
+    """Ensures necessary NLTK resources are downloaded."""
+    try:
+        # 'punkt' for word_tokenize, 'stopwords' for corpus, 'wordnet' for lemmatizer
+        nltk.download('punkt', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        nltk.download('wordnet', quiet=True)
+        st.success("NLTK resources successfully loaded.")
+    except Exception as e:
+        st.error(f"Failed to download NLTK data: {e}")
+
+download_nltk_data()
+# -----------------------------------------------
+
 # Define chunking parameters
 CHUNK_SIZE = 500
-CHUNK_OVERLAP = 250 # <-- INCREASED OVERLAP FOR BETTER CONTEXT BRIDGING
+CHUNK_OVERLAP = 250 
 
-# --- Define Default PDF Filename ---
+# Define Default PDF Filename
 DEFAULT_PDF_FILENAME = "Annual-Report-2024-25.pdf"
 
 # Gemini API Configuration
-# Reads the key securely from the environment variable GEMINI_API_KEY
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
 
@@ -47,14 +63,10 @@ API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-fl
 @st.cache_resource
 def setup_nlp_tools():
     """Initializes and caches NLTK resources."""
-    try:
-        stop_words = set(stopwords.words('english'))
-        lemmatizer = WordNetLemmatizer()
-        return stop_words, lemmatizer
-    except LookupError:
-        # Fallback in case NLTK components haven't been downloaded (requires manual nltk.download calls)
-        st.error("NLTK resources (stopwords, wordnet) may be missing. Ensure they are downloaded.")
-        return set(stopwords.words('english')), WordNetLemmatizer()
+    # Since download_nltk_data() is called first, these should now succeed.
+    stop_words = set(stopwords.words('english'))
+    lemmatizer = WordNetLemmatizer()
+    return stop_words, lemmatizer
 
 stop_words, lemmatizer = setup_nlp_tools()
 
@@ -94,7 +106,6 @@ def get_pdf_text_and_chunks(file_data, file_name):
             raw_text += page.extract_text() or ""
         
         # 2. Simple Chunking Logic (using raw text for context retrieval)
-        # We clean the text for processing/indexing, but keep the original for retrieval
         cleaned_text = raw_text 
         
         chunks = []
@@ -149,8 +160,8 @@ def get_best_match(query, chunks, vectorizer, tfidf_matrix):
     
     # Check if query words exist in the vectorizer's vocabulary
     if not any(token in vectorizer.vocabulary_ for token in query_tokens):
-         # Fallback check, though the low score should handle this mostly
-         return None, 0.0
+          # Fallback check, though the low score should handle this mostly
+          return None, 0.0
 
     query_vector = vectorizer.transform([clean_query])
     
@@ -174,7 +185,7 @@ def get_best_match(query, chunks, vectorizer, tfidf_matrix):
     best_match_index = np.argmax(boosted_scores)
     best_score = cosine_scores[best_match_index] # Report the true cosine similarity score
     best_chunk = chunks[best_match_index]
-            
+        
     return best_chunk, best_score
 
 # --- LLM Generation Function (Synchronous) ---
@@ -318,14 +329,13 @@ def main():
 
 
     # --- Data Loading and Indexing ---
-    data_source_key = file_name # Use file name for robust cache key when loading from disk
+    data_source_key = file_name 
     
     if file_data is None:
         st.warning("Please upload a PDF or ensure the default file is present to begin the analysis.")
         return
 
     # Process PDF into Chunks
-    # This function extracts text and creates chunks based on size parameters
     raw_text, chunks, processed_file_name = get_pdf_text_and_chunks(file_data, file_name)
     if chunks is None:
         return 
@@ -392,4 +402,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
