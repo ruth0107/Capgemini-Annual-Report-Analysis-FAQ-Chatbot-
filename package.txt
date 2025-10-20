@@ -1,0 +1,10 @@
+python3-pip
+
+Essential system libraries to resolve dependency conflicts for PDF processing and display
+
+libsm6
+libxext6
+libfontconfig1
+libice6
+libxrender1
+libxtst6
