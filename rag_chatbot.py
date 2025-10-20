@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import nltk # <-- NEW: Import NLTK for downloads
-from nltk.tokenize import word_tokenize # Still imported, but no longer used in preprocess_words
+import nltk 
+from nltk.tokenize import word_tokenize 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
@@ -56,8 +56,22 @@ CHUNK_OVERLAP = 250
 DEFAULT_PDF_FILENAME = "Annual-Report-2024-25.pdf"
 
 # Gemini API Configuration
-# API_KEY is now handled dynamically in main()
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
+
+# --- NEW: Key Loading Helper ---
+def get_initial_api_key():
+    """Tries to load API key from Streamlit secrets, then from OS environment."""
+    # 1. Check Streamlit secrets
+    try:
+        if st.secrets.get("GEMINI_API_KEY"):
+            return st.secrets["GEMINI_API_KEY"]
+    except AttributeError:
+        # st.secrets might not exist in local development without secrets.toml
+        pass
+        
+    # 2. Check environment variables
+    return os.environ.get("GEMINI_API_KEY", "")
+# -------------------------------
 
 
 # Initialize resources
@@ -191,12 +205,12 @@ def get_best_match(query, chunks, vectorizer, tfidf_matrix):
 
 # --- LLM Generation Function (Synchronous) ---
 
-def generate_answer_with_llm(user_query, context_sentence, retrieval_score, api_key): # <-- MODIFIED SIGNATURE
+def generate_answer_with_llm(user_query, context_sentence, retrieval_score, api_key): 
     """
     Calls the Gemini API using the synchronous 'requests' library.
     """
     
-    if not api_key: # <-- USE PASSED KEY
+    if not api_key: 
         return "**API Key Missing Error:** The RAG Chatbot requires the Gemini API Key to generate conversational answers."
 
     # 1. Define the system instruction (persona and rules)
@@ -229,7 +243,7 @@ def generate_answer_with_llm(user_query, context_sentence, retrieval_score, api_
 
     for attempt in range(max_retries):
         try:
-            full_api_url = f"{API_URL}?key={api_key}" # <-- USE PASSED KEY
+            full_api_url = f"{API_URL}?key={api_key}" 
             
             response = requests.post(
                 full_api_url,
@@ -270,9 +284,9 @@ def main():
     st.title("🧠 RAG Chatbot: Capegemini FAQ's")
     st.markdown("Uploaded PDF is used to build a semantic index for the whole document. Answers are based on **meaningful chunks** from the full report.")
     
-    # Initialize API key in session state
+    # Initialize API key in session state, prioritizing automatic loading
     if 'gemini_api_key' not in st.session_state:
-        st.session_state.gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+        st.session_state.gemini_api_key = get_initial_api_key()
 
 
     # --- Sidebar for PDF Upload ---
@@ -334,29 +348,35 @@ def main():
         # --- END UI IMPROVEMENT ---
         
         st.markdown("---")
-        st.header("3. Gemini API Key") # <-- NEW SECTION
+        st.header("3. Gemini API Key") 
         
-        # API Key Input Logic: Uses environment key if present, otherwise prompts user
-        # Key management moved to session state for persistence
-        key_input = st.text_input(
-            "Enter your Gemini API Key:",
-            type="password",
-            value=st.session_state.gemini_api_key,
-            key="api_key_input",
-            help="You can get a key from Google AI Studio. The application is currently missing the environment variable."
-        )
-        # Update session state with the current input key
-        st.session_state.gemini_api_key = key_input
-             
-        # Check if we have a key now
-        if not st.session_state.gemini_api_key:
-            st.warning("⚠️ **API Key Missing!** Please enter your Gemini API Key above to enable the chat.")
-        # --- END NEW SECTION ---
+        # Get the current operational API key
+        current_api_key = st.session_state.gemini_api_key
+        
+        # Logic to handle key display based on whether it was loaded automatically
+        if current_api_key and get_initial_api_key():
+            # Key loaded from secrets or env
+            st.success("✅ Gemini API Key successfully loaded from secrets or environment.")
+        else:
+            # Fallback to manual input if no key is found automatically or if previous key failed
+            key_input = st.text_input(
+                "Enter your Gemini API Key:",
+                type="password",
+                value=current_api_key, # Use current_api_key which might be a manually entered value from a previous run
+                key="api_key_input",
+                help="You must enter your key if it's not set via environment variables or secrets.toml."
+            )
+            # Update session state with the current input key
+            st.session_state.gemini_api_key = key_input
+            
+            # Re-check and warn if still missing
+            if not st.session_state.gemini_api_key:
+                st.warning("⚠️ **API Key Missing!** Please enter your Gemini API Key above to enable the chat.")
 
 
     # --- Data Loading and Indexing ---
     
-    # Get the current operational API key
+    # Get the final operational API key after checking sidebar input
     current_api_key = st.session_state.gemini_api_key
     
     data_source_key = file_name 
@@ -390,8 +410,7 @@ def main():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # --- CHAT INPUT LOGIC FIX ---
-    # Check for API Key presence before displaying the active chat input
+    # --- CHAT INPUT LOGIC ---
     if current_api_key:
         user_query = st.chat_input("Ask a question about the full report...")
     else:
