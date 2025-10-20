@@ -8,3 +8,5 @@ wordcloud
 matplotlib
 scikit-learn
 gensim
+requests
+pypdf
